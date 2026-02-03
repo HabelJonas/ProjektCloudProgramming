@@ -150,5 +150,7 @@ infra/*.tfplan
 
 *.vrb
 *.nav
+*.run.xml
+*.snm
 docs/Phase2/Habel-Jonas_9227109_CloudProgramming_P2_A.nav
 docs/Phase2/Habel-Jonas_9227109_CloudProgramming_P2_A.nav
