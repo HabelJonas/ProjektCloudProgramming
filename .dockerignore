@@ -1,0 +1,10 @@
+.git
+.github
+docs
+infra
+terraform
+*.md
+*.pdf
+*.tex
+*.png
+*.jpg
