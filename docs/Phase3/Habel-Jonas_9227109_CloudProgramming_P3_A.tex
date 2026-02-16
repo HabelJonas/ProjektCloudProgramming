@@ -1,0 +1,101 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{hyperref}
+
+\geometry{a4paper, left=2cm, right=2cm, top=2cm, bottom=2cm}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setstretch{1.05}
+
+\title{Abstract Phase III\\Projekt Cloud Programming}
+\author{Jonas Habel\\Matrikelnummer: 9227109}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+Dieses Abstract fasst die Umsetzung und Reflexion des Projekts \glqq Cloud Programming\grqq{} in Phase III zusammen.
+Ziel war die Bereitstellung einer Unternehmenswebsite, die hochverfügbar, global erreichbar und automatisch skalierbar ist.
+Die technische Umsetzung erfolgte in Azure mit Terraform als Infrastructure-as-Code-Ansatz.
+
+\section*{Making-of}
+
+\subsection*{Von der Zielsetzung zur Methodik}
+Im Mittelpunkt stand nicht nur ein funktionierendes Deployment, sondern ein reproduzierbarer Betriebsprozess.
+Dafür wurden die Anforderungen in technische Teilziele übersetzt und anschließend als deklarative Infrastruktur modelliert.
+Die Methodik war iterativ:
+\begin{enumerate}
+  \item Definition der Qualitätsziele Verfügbarkeit, Latenz und Skalierbarkeit.
+  \item Auswahl der Azure-Dienste und Modellierung in Terraform.
+  \item Aufbau eines automatisierten Build- und Deploymentablaufs.
+  \item Verifikation über lokale Läufe und Pipeline-Ausführungen.
+\end{enumerate}
+Die Anwendung selbst wurde bewusst simpel gehalten (statische HTML-Seite in einem NGINX-Container), um den Fokus auf Architektur,
+Betrieb und Automatisierung zu legen.
+
+\subsection*{Quellen/Ressourcen/Software}
+Folgende Ressourcen wurden für die Umsetzung genutzt:
+\begin{itemize}
+  \item GitHub (Codeverwaltung) und GitHub Actions (Build/Push-Workflow).
+  \item Docker mit \texttt{nginx:1.27-alpine} als Container-Basis.
+  \item Terraform (\texttt{azurerm}, \texttt{random}) mit Remote State in Azure Storage.
+  \item Azure Container Registry als Artefakt-Repository.
+  \item Azure Container Apps in West Europe und North Europe.
+  \item Azure Front Door als globaler Entry Point mit Routing und Failover.
+  \item Azure Key Vault, Service Principal und Managed Identity für Zugriff und Secrets.
+  \item \href{https://learn.microsoft.com/azure/frontdoor/front-door-overview}{Microsoft Learn: Azure Front Door} und \href{https://learn.microsoft.com/azure/container-apps/overview}{Microsoft Learn: Azure Container Apps}.
+  \item \href{https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs}{Terraform AzureRM Provider Dokumentation} und \href{https://github.com/azure/login}{Azure Login Action}.
+\end{itemize}
+
+\subsection*{Breakdown der Umsetzung}
+Die Umsetzung wurde in fünf Arbeitspakete aufgeteilt:
+\begin{enumerate}
+  \item \textbf{Infrastrukturmodell:} Resource Group, Container Registry, zwei Container-App-Environments und Log-Analytics-Workspaces wurden als Terraform-Ressourcen angelegt.
+  \item \textbf{Anwendungslayer:} Zwei Container Apps (Primary/Secondary) wurden mit identischem Image, externer Ingress-Konfiguration und Autoscaling (1--10 Replikas, HTTP-Regel) bereitgestellt.
+  \item \textbf{Globales Routing:} Azure Front Door verbindet beide Regionen; Prioritäten und Health Probes ermöglichen Failover.
+  \item \textbf{Sicherheit und Zugriff:} Managed Identity mit \texttt{AcrPull} ersetzt statische Registry-Credentials; Secrets werden über Key Vault bezogen.
+  \item \textbf{Deploymentprozess:} Das Skript \texttt{terraform-local.cmd} automatisiert Key-Vault-Read, Azure-Login, Image-Build/Push und Terraform-Apply; die Pipeline automatisiert den Build/Push-Teil.
+\end{enumerate}
+Diese Arbeitsteilung war wichtig, weil Architektur, Security und Betrieb in Cloud-Projekten eng zusammenhängen.
+Insbesondere die Trennung zwischen Artefaktfluss (Image-Build/Push) und Infrastrukturfluss (Terraform-State und Apply)
+hat die Umsetzung transparenter gemacht und Fehleranalyse vereinfacht.
+Bei Änderungen konnte dadurch gezielt entschieden werden, ob ein reiner Image-Rollout ausreicht oder eine Infrastrukturänderung notwendig ist.
+
+\section*{Reflexion}
+
+Das erreichte Ergebnis ist funktional und technisch konsistent:
+Die Website wird containerisiert ausgeliefert, über einen globalen Endpunkt erreichbar gemacht und in zwei Regionen betrieben.
+Die Infrastruktur ist vollständig im Code beschrieben und daher reproduzierbar.
+
+Damit entspricht das Ergebnis dem Ziel der Arbeit weitgehend.
+Nicht vollständig erfüllt ist jedoch der Nachweisgrad:
+\begin{itemize}
+  \item Die Anwendung ist ein Demonstrator und nicht produktionsnah in der Fachlogik.
+  \item Skalierungs- und Failoververhalten sind konfiguriert, aber noch nicht durch automatisierte Lasttests quantitativ belegt.
+  \item Der CI-Workflow automatisiert aktuell den Artefaktfluss, nicht den vollständigen End-to-End-Infrastruktur-Deploy.
+\end{itemize}
+Aus dem Bearbeitungsprozess lassen sich folgende Schlüsse ziehen:
+\begin{enumerate}
+  \item \textbf{IaC verbessert Nachvollziehbarkeit und Stabilität.} Änderungen sind versionierbar und reproduzierbar, manuelle Drift wird reduziert.
+  \item \textbf{Security-by-Design lohnt sich früh.} Key Vault, Rollenmodell und Managed Identity vereinfachen den Betrieb deutlich.
+  \item \textbf{Automatisierung endet nicht beim Build.} Für höhere Reife sind automatisierte Deploy-, Last- und Resilienztests der nächste zwingende Schritt.
+\end{enumerate}
+Ein zusätzlicher Lernpunkt war die praktische Bedeutung sauberer Variablen- und Namenskonzepte in Terraform.
+Die Parametrisierung mit Regionen, Replikagrenzen und optional bestehender Registry hat gezeigt, wie stark Wartbarkeit
+von konsistentem Infrastrukturdesign abhängt.
+Für kommende Arbeiten nehme ich mit, technische Anforderungen früher in messbare Akzeptanzkriterien zu übersetzen,
+damit die Zielerreichung nicht nur qualitativ, sondern auch quantitativ abgesichert ist.
+
+\section*{Fazit}
+Das Projekt zeigt, dass sich die geforderten Cloud-Eigenschaften mit überschaubarem Umfang strukturiert umsetzen lassen:
+mehrregionale Bereitstellung, globales Routing, deklarative Infrastruktur und automatisierter Build-Prozess.
+Die Zielsetzung wurde damit inhaltlich erreicht.
+Als nächster Reifegrad sind End-to-End-Automatisierung und belastbare Betriebsnachweise (Load und Failover) sinnvoll, um die Lösung produktionsnäher abzusichern.
+
+
+\end{document}
