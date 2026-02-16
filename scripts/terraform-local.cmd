@@ -1,49 +1,105 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 
-REM Required environment variables
-if "%TFSTATE_RESOURCE_GROUP%"=="" (
-  echo TFSTATE_RESOURCE_GROUP is not set.
+echo [STEP] Starting local Terraform deployment...
+
+REM Required variables
+if "%KEYVAULT_NAME%"=="" (
+  echo KEYVAULT_NAME is not set.
+  echo Please set KEYVAULT_NAME to the Azure Key Vault that stores deployment secrets.
   exit /b 1
 )
-if "%TFSTATE_STORAGE_ACCOUNT%"=="" (
-  echo TFSTATE_STORAGE_ACCOUNT is not set.
+echo [STEP] Using Key Vault: %KEYVAULT_NAME%
+
+REM Ensure the local user is logged in to Azure to read secrets from Key Vault
+echo [STEP] Validating Azure CLI login...
+call az account show 1>nul 2>nul
+if errorlevel 1 (
+  echo Azure CLI is not logged in. Run "az login" first.
   exit /b 1
 )
-if "%TFSTATE_CONTAINER%"=="" (
-  echo TFSTATE_CONTAINER is not set.
+
+if not "%KEYVAULT_SUBSCRIPTION_ID%"=="" (
+  call az account set --subscription "%KEYVAULT_SUBSCRIPTION_ID%" 1>nul
+  if errorlevel 1 (
+    echo Could not set Azure subscription "%KEYVAULT_SUBSCRIPTION_ID%".
+    exit /b 1
+  )
+)
+
+REM Default secret names (override via KV_SECRET_* variables if needed)
+if "%KV_SECRET_ACR_NAME%"=="" set "KV_SECRET_ACR_NAME=acr-name"
+if "%KV_SECRET_ACR_RESOURCE_GROUP%"=="" set "KV_SECRET_ACR_RESOURCE_GROUP=acr-resource-group"
+if "%KV_SECRET_ACR_LOCATION%"=="" set "KV_SECRET_ACR_LOCATION=acr-location"
+if "%KV_SECRET_APP_ID%"=="" set "KV_SECRET_APP_ID=app-id"
+if "%KV_SECRET_TENANT_ID%"=="" set "KV_SECRET_TENANT_ID=tenant-id"
+if "%KV_SECRET_CLIENT_SECRET%"=="" set "KV_SECRET_CLIENT_SECRET=client-secret"
+if "%KV_SECRET_IMAGE_NAME%"=="" set "KV_SECRET_IMAGE_NAME=image-name"
+if "%KV_SECRET_IMAGE_TAG%"=="" set "KV_SECRET_IMAGE_TAG=image-tag"
+if "%KV_SECRET_TFSTATE_RESOURCE_GROUP%"=="" set "KV_SECRET_TFSTATE_RESOURCE_GROUP=tfstate-resource-group"
+if "%KV_SECRET_TFSTATE_STORAGE_ACCOUNT%"=="" set "KV_SECRET_TFSTATE_STORAGE_ACCOUNT=tfstate-storage-account"
+if "%KV_SECRET_TFSTATE_CONTAINER%"=="" set "KV_SECRET_TFSTATE_CONTAINER=tfstate-container"
+if "%KV_SECRET_TFSTATE_KEY%"=="" set "KV_SECRET_TFSTATE_KEY=tfstate-key"
+
+REM Load required values from Key Vault
+echo [STEP] Loading required secrets from Key Vault...
+call :load_required_secret ACR_NAME "%KV_SECRET_ACR_NAME%"
+if errorlevel 1 (
+  echo [ERROR] Failed loading secret: %KV_SECRET_ACR_NAME%
   exit /b 1
 )
-if "%TFSTATE_KEY%"=="" (
-  echo TFSTATE_KEY is not set.
+call :load_required_secret ACR_RESOURCE_GROUP "%KV_SECRET_ACR_RESOURCE_GROUP%"
+if errorlevel 1 (
+  echo [ERROR] Failed loading secret: %KV_SECRET_ACR_RESOURCE_GROUP%
   exit /b 1
 )
-if "%APP_ID%"=="" (
-  echo APP_ID is not set.
+call :load_required_secret ACR_LOCATION "%KV_SECRET_ACR_LOCATION%"
+if errorlevel 1 (
+  echo [ERROR] Failed loading secret: %KV_SECRET_ACR_LOCATION%
   exit /b 1
 )
-if "%TENANT_ID%"=="" (
-  echo TENANT_ID is not set.
+call :load_required_secret APP_ID "%KV_SECRET_APP_ID%"
+if errorlevel 1 (
+  echo [ERROR] Failed loading secret: %KV_SECRET_APP_ID%
   exit /b 1
 )
-if "%CLIENT_SECRET%"=="" (
-  echo CLIENT_SECRET is not set.
+call :load_required_secret TENANT_ID "%KV_SECRET_TENANT_ID%"
+if errorlevel 1 (
+  echo [ERROR] Failed loading secret: %KV_SECRET_TENANT_ID%
   exit /b 1
 )
-if "%ACR_NAME%"=="" (
-  echo ACR_NAME is not set.
+call :load_required_secret CLIENT_SECRET "%KV_SECRET_CLIENT_SECRET%"
+if errorlevel 1 (
+  echo [ERROR] Failed loading secret: %KV_SECRET_CLIENT_SECRET%
   exit /b 1
 )
-if "%ACR_RESOURCE_GROUP%"=="" (
-  echo ACR_RESOURCE_GROUP is not set.
+call :load_required_secret TFSTATE_RESOURCE_GROUP "%KV_SECRET_TFSTATE_RESOURCE_GROUP%"
+if errorlevel 1 (
+  echo [ERROR] Failed loading secret: %KV_SECRET_TFSTATE_RESOURCE_GROUP%
   exit /b 1
 )
-if "%ACR_LOCATION%"=="" (
-  echo ACR_LOCATION is not set.
+call :load_required_secret TFSTATE_STORAGE_ACCOUNT "%KV_SECRET_TFSTATE_STORAGE_ACCOUNT%"
+if errorlevel 1 (
+  echo [ERROR] Failed loading secret: %KV_SECRET_TFSTATE_STORAGE_ACCOUNT%
   exit /b 1
 )
+call :load_required_secret TFSTATE_CONTAINER "%KV_SECRET_TFSTATE_CONTAINER%"
+if errorlevel 1 (
+  echo [ERROR] Failed loading secret: %KV_SECRET_TFSTATE_CONTAINER%
+  exit /b 1
+)
+call :load_required_secret TFSTATE_KEY "%KV_SECRET_TFSTATE_KEY%"
+if errorlevel 1 (
+  echo [ERROR] Failed loading secret: %KV_SECRET_TFSTATE_KEY%
+  exit /b 1
+)
+
+REM Optional values from Key Vault (with local defaults)
+call :load_optional_secret IMAGE_NAME "%KV_SECRET_IMAGE_NAME%"
+call :load_optional_secret IMAGE_TAG "%KV_SECRET_IMAGE_TAG%"
 
 REM Azure login (service principal)
+echo [STEP] Logging in with service principal...
 call az login --service-principal --username "%APP_ID%" --tenant "%TENANT_ID%" --password "%CLIENT_SECRET%" 1>nul
 if errorlevel 1 (
   echo Azure login failed.
@@ -51,10 +107,10 @@ if errorlevel 1 (
 )
 
 REM Build and push image to ACR first
-if "%IMAGE_NAME%"=="" set IMAGE_NAME=cloudprogramming-app
-if "%IMAGE_TAG%"=="" set IMAGE_TAG=latest
+if "%IMAGE_NAME%"=="" set "IMAGE_NAME=cloudprogramming-app"
+if "%IMAGE_TAG%"=="" set "IMAGE_TAG=latest"
 if "%IMAGE_REVISION%"=="" (
-  for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss"') do set IMAGE_REVISION=%%i
+  for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss"') do set "IMAGE_REVISION=%%i"
 )
 echo [INFO] ACR_NAME=%ACR_NAME%
 echo [INFO] ACR_RESOURCE_GROUP=%ACR_RESOURCE_GROUP%
@@ -127,3 +183,25 @@ terraform apply -auto-approve ^
 set TF_EXIT=%errorlevel%
 popd
 exit /b %TF_EXIT%
+
+:load_required_secret
+set "TARGET_VAR=%~1"
+set "SECRET_NAME=%~2"
+set "SECRET_VALUE="
+for /f "usebackq delims=" %%i in (`az keyvault secret show --vault-name "%KEYVAULT_NAME%" --name "%SECRET_NAME%" --query value -o tsv 2^>nul`) do set "SECRET_VALUE=%%i"
+if "%SECRET_VALUE%"=="" (
+  echo Required Key Vault secret "%SECRET_NAME%" is missing or unreadable.
+  exit /b 1
+)
+set "%TARGET_VAR%=%SECRET_VALUE%"
+exit /b 0
+
+:load_optional_secret
+set "TARGET_VAR=%~1"
+set "SECRET_NAME=%~2"
+set "SECRET_VALUE="
+for /f "usebackq delims=" %%i in (`az keyvault secret show --vault-name "%KEYVAULT_NAME%" --name "%SECRET_NAME%" --query value -o tsv 2^>nul`) do set "SECRET_VALUE=%%i"
+if defined SECRET_VALUE (
+  set "%TARGET_VAR%=%SECRET_VALUE%"
+)
+exit /b 0
