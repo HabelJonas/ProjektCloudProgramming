@@ -67,10 +67,6 @@ variable "acr_name" {
     condition     = var.acr_name == null || can(regex("^[a-z0-9]{5,50}$", var.acr_name))
     error_message = "If provided, acr_name must be 5-50 lowercase letters/numbers only."
   }
-  validation {
-    condition     = var.use_existing_acr == false || var.acr_name != null
-    error_message = "When use_existing_acr is true, acr_name must be provided."
-  }
 }
 
 variable "use_existing_acr" {
