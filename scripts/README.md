@@ -1,6 +1,6 @@
 # Local Deploy Script
 
-This script builds and pushes the Docker image to ACR, then runs the Terraform workflow locally while keeping state in Azure Storage.
+This script builds and pushes the Docker image to ACR, then runs the Terraform workflow locally while keeping state in Azure Storage. Tested and implemented on Mircosoft Windows Server 2025 Standard.
 
 ## Prerequisites
 
