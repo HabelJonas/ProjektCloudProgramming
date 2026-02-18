@@ -45,8 +45,10 @@
   keepspaces=true,
   language=Terraform
 }
+\hyphenation{Sil-ben-tren-nung}
 
-\title{Phase 3b: Anforderungsanalyse bis Lösung und Lessons Learned\\Projekt Cloud Programming}
+
+\title{Phase 3: Anforderungsanalyse bis Lösung und Lessons Learned\\Projekt Cloud Programming}
 \author{Jonas Habel\\Matrikelnummer: 9227109}
 \date{\today}
 
@@ -60,7 +62,7 @@ Diese Ausarbeitung beschreibt den vollständigen Weg der Projektidee von der Anf
 
 \section{Einführung: Anforderungsanalyse und Ziele}
 \subsection{Ausgangssituation und Problemabgrenzung}
-Ausgangspunkt des Projekts ist die Bereitstellung einer Unternehmenswebsite in einer Cloud-Umgebung. Die eigentliche Webanwendung ist bewusst einfach gehalten (statische HTML-Seite), damit die Bewertung auf dem Architektur- und Betriebsanteil liegt. Die technische Problemstellung liegt damit nicht in komplexer Fachlogik, sondern in den nicht-funktionalen Anforderungen:
+Ausgangspunkt des Projekts ist die Bereitstellung einer Unternehmenswebsite in einer Cloud-Um\-ge\-bung. Die eigentliche Webanwendung ist bewusst einfach gehalten (statische HTML-Seite), damit die Bewertung auf dem Architektur- und Betriebsanteil liegt. Die technische Problemstellung liegt damit nicht in komplexer Fachlogik, sondern in den nicht-funktionalen Anforderungen:
 
 \begin{itemize}
   \item hohe Verfügbarkeit auch bei regionalen Störungen,
@@ -89,7 +91,7 @@ Die Methodik folgt einem iterativen, risikoorientierten Ablauf: zuerst Anforderu
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.76\textwidth]{../Phase2/pics/Vorgehensweise.png}
-\caption{Vorgehensmodell aus Phase 2 als Basis für die Endphase}
+\caption{Vorgehensmodell aus Phase 2}
 \end{figure}
 
 Die praktische Umsetzung war dabei bewusst als Schleife organisiert und nicht als einmaliger ``Big-Bang''-Deploy. Nach jedem technischen Schritt wurde geprüft, ob das Ergebnis noch zur Zielsetzung passt: Nach Infrastrukturänderungen folgte \texttt{terraform validate}, bei Containeränderungen ein erneuter Build/Push-Zyklus, und bei Routing-Anpassungen eine Erreichbarkeits- und Failover-Prüfung über den Front-Door-Endpunkt. Dieser zyklische Ansatz hat zwei Vorteile gebracht: Fehler wurden früh erkannt, und die Auswirkung einzelner Änderungen blieb klar nachvollziehbar.
@@ -145,7 +147,7 @@ Die finale Lösung besteht aus folgenden Schichten:
   \item \textbf{Artefakt-Schicht}: Docker-Image der statischen Web-App.
   \item \textbf{Registry-Schicht}: Azure Container Registry (ACR) für Image-Hosting.
   \item \textbf{Compute-Schicht}: zwei Azure Container Apps (Primary/Secondary) in verschiedenen Regionen.
-  \item \textbf{Observability-Schicht}: je Region ein Log-Analytics-Workspace und ein Container-App-Environment.
+  \item \textbf{Observability-Schicht}: je Region ein Log-Analytics-Workspace und ein Container-App-En\-vi\-ron\-ment.
   \item \textbf{Edge-Schicht}: Azure Front Door als globaler Einstiegspunkt mit HTTPS-Weiterleitung und Health-basiertem Routing.
   \item \textbf{Identity-Schicht}: User Assigned Managed Identity und \texttt{AcrPull}-Rolle für Registry-Zugriffe.
 \end{enumerate}
@@ -260,10 +262,7 @@ Zusätzlich zeigt der aktuelle Stand, dass Stabilität nicht nur aus ``richtigen
 \section{In Phase 3 gelöste Issues}
 \subsection{Issue 1: Terraform-Validierungsfehler in \texttt{variables.tf}}
 \textbf{Problemstellung:} In einer früheren Version wurde im \texttt{validation}-Block der Variable \texttt{acr\_name} auf eine andere Variable (\texttt{var.use\_existing\_acr}) referenziert. Terraform-Validierungen dürfen jedoch nur den Wert der \emph{selben} Variable auswerten.
-
-\textbf{Auswirkung:} \texttt{terraform validate} schlug fehl; damit war ein sauberer Deploy-Prozess blockiert.
-
-\textbf{Ursache:} Falsches Validierungsmuster in der Variablendefinition.
+Dadruch ist \texttt{terraform validate} fehlgeschlagen. Ein sauberer Deploy-Prozess war damit blockiert.
 
 \textbf{Lösung in Phase 3:}
 \begin{itemize}
@@ -284,12 +283,11 @@ variable "acr_name" {
 }
 \end{lstlisting}
 
-\textbf{Ergebnis:} Die Validierungsphase ist wieder stabil; die Infrastruktur kann ohne diese Blockade ausgerollt werden.
+\textbf{Ergebnis:} Die Validierungsphase ist wieder erfolgreich. Die Infrastruktur kann ohne diese Blockade ausgerollt werden.
 
 \subsection{Issue 2: HTTPS erzwungen, aber fehlende Security Header}
 \textbf{Problemstellung:} Front Door erzwingt HTTPS bereits korrekt, jedoch fehlten in einer früheren NGINX-Konfiguration zusätzliche Header wie CSP oder HSTS.
-
-\textbf{Risiko:} Erhöhtes Angriffsfenster für XSS, Clickjacking und schwache Browser-Sicherheitsrichtlinien.
+Dadurch können bekannte Sicherheitslöcher ausgenutzt werden wie zum Beispiel ein erhöhtes Angriffsfenster für XSS, Clickjacking und schwache Browser-Sicherheitsrichtlinien.
 
 \textbf{Lösung in Phase 3:}
 \begin{itemize}
@@ -314,7 +312,8 @@ variable "acr_name" {
 \end{tabular}
 \end{table}
 
-\textbf{Ergebnis:} Die Transportverschlüsselung durch Front Door wird jetzt um browserseitige Sicherheitskontrollen in der Anwendungsschicht ergänzt. Dadurch steigt die technische Reife der Lösung deutlich.
+\textbf{Ergebnis:} Die Transportverschlüsselung durch Front Door wird jetzt um browserseitige Sicherheitskontrollen in der Anwendungsschicht ergänzt.
+Dadurch steigt die technische Reife der Lösung deutlich.
 
 \section{Lessons Learned}
 \subsection{Technische Erkenntnisse}
